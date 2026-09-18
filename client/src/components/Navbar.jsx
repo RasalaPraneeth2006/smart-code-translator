@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Code2, GitCompare, History, Terminal, User, LogOut, Sparkles, Layers, FolderTree } from 'lucide-react';
+import { Code2, GitCompare, History, Terminal, User, LogOut, Sparkles, Layers, FolderTree, Zap } from 'lucide-react';
 
 export default function Navbar({ activeTab, setActiveTab, toggleHistory }) {
   const { user, logout, setIsAuthModalOpen } = useAuth();
