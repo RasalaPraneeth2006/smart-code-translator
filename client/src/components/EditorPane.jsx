@@ -262,6 +262,7 @@ export default function EditorPane({
               language={sourceMonaco}
               theme="vs-dark"
               value={sourceCode}
+              loading={<div className="flex items-center justify-center h-full text-xs text-gray-400 font-mono">Loading Code Editor...</div>}
               onChange={(val) => setSourceCode(val || '')}
               options={{
                 fontSize: 13,
@@ -347,6 +348,7 @@ export default function EditorPane({
               language={targetMonaco}
               theme="vs-dark"
               value={activeOutputTab === 'code' ? translatedCode : testStubs}
+              loading={<div className="flex items-center justify-center h-full text-xs text-gray-400 font-mono">Loading Output Editor...</div>}
               options={{
                 readOnly: true,
                 fontSize: 13,

@@ -494,6 +494,7 @@ export default function OnlineCompiler() {
               language={monacoLang}
               theme="vs-dark"
               value={code}
+              loading={<div className="flex items-center justify-center h-full text-xs text-amber-400 font-mono">Loading Interactive Monaco Playground...</div>}
               onChange={(val) => setCode(val || '')}
               options={{
                 fontSize: 13,
