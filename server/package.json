@@ -1,0 +1,21 @@
+{
+  "name": "smart-code-translator-server",
+  "version": "1.0.0",
+  "description": "Backend server for AI-Powered Smart Code Translator",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@google/genai": "latest",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.4.1",
+    "tree-sitter": "^0.21.1"
+  }
+}

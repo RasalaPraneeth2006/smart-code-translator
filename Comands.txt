@@ -1,0 +1,17 @@
+🖥️ Server
+
+cd d:\smart-code-translator\server
+npm install        # first time only
+npm start          # runs: node server.js
+
+
+🌐 Client
+
+cd d:\smart-code-translator\client
+npm install        # first time only
+npm run dev        # runs: vite dev server
+
+
+AI-POWERED MOCK INTERVIEW:
+cd server; node src/server.js
+cd client; npm run dev

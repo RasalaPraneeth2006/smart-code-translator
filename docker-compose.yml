@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # Backend API Server
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: sct-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.6-flash}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/smart_code_translator}
+      - JWT_SECRET=${JWT_SECRET:-sct_jwt_secret_production_2026}
+    depends_on:
+      - mongodb
+
+  # Frontend Web Client
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=/api
+    container_name: sct-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  # Optional Local MongoDB Container (or use MongoDB Atlas)
+  mongodb:
+    image: mongo:7-jammy
+    container_name: sct-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

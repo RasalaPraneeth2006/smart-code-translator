@@ -1,0 +1,17 @@
+{
+  "name": "smart-translate-cli",
+  "version": "1.0.0",
+  "description": "Terminal CLI tool for AI-Powered Smart Code Translator",
+  "main": "index.js",
+  "bin": {
+    "smart-translate": "./bin/smart-translate.js"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "commander": "^12.1.0"
+  }
+}
