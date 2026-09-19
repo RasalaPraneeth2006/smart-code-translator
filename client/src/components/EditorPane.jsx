@@ -14,7 +14,8 @@ import {
   AlertCircle,
   FileSpreadsheet,
   CheckCircle2,
-  Edit3
+  Edit3,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const SUPPORTED_LANGUAGES = [
@@ -55,6 +56,10 @@ export default function EditorPane({
   setIncludeTests,
   activeOutputTab,
   setActiveOutputTab,
+  isFallback = false,
+  modelUsed = '',
+  latencyMs = 0,
+  openAISettings,
 }) {
   const [copiedSource, setCopiedSource] = useState(false);
   const [copiedTarget, setCopiedTarget] = useState(false);
@@ -306,6 +311,21 @@ export default function EditorPane({
                     <span>Unit Test Stubs</span>
                   </button>
                 )}
+
+                {modelUsed && (
+                  <span
+                    className={`hidden sm:inline-flex items-center space-x-1 px-2 py-0.5 text-[10px] font-mono rounded border ${
+                      isFallback
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    }`}
+                  >
+                    <Sparkles className="w-2.5 h-2.5" />
+                    <span>
+                      {modelUsed} {latencyMs ? `(${latencyMs}ms)` : ''}
+                    </span>
+                  </span>
+                )}
               </div>
             </div>
 
@@ -334,7 +354,26 @@ export default function EditorPane({
             </div>
           </div>
 
-          <div className="flex-1 relative">
+          <div className="flex-1 relative flex flex-col">
+            {isFallback && translatedCode && (
+              <div className="px-3 py-1.5 bg-amber-950/40 border-b border-amber-500/30 flex items-center justify-between text-xs text-amber-200 z-10">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-[11px]">
+                    Generated via <strong>Offline Fallback</strong>. For 100% full Gemini AI translation, configure an API key.
+                  </span>
+                </div>
+                {openAISettings && (
+                  <button
+                    onClick={openAISettings}
+                    className="px-2 py-0.5 text-[10px] font-semibold bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded text-amber-300 transition shrink-0 ml-2"
+                  >
+                    Configure Key
+                  </button>
+                )}
+              </div>
+            )}
+
             {isLoading ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-dark-900/80 backdrop-blur-sm z-10">
                 <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-3" />

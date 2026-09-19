@@ -1,10 +1,11 @@
 import express from 'express';
-import { translateCode, analyzeCode, optimizeCode } from '../controllers/codeController.js';
+import { translateCode, analyzeCode, optimizeCode, getGeminiStatus } from '../controllers/codeController.js';
 import { runCode, explainError } from '../controllers/runController.js';
 import { optionalAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
+router.get('/gemini-status', getGeminiStatus);
 router.post('/translate', optionalAuth, translateCode);
 router.post('/analyze', analyzeCode);
 router.post('/optimize', optimizeCode);

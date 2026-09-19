@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Code2, GitCompare, History, Terminal, User, LogOut, Sparkles, Layers, FolderTree, Zap } from 'lucide-react';
 
-export default function Navbar({ activeTab, setActiveTab, toggleHistory }) {
+export default function Navbar({ activeTab, setActiveTab, toggleHistory, openAISettings, aiEngineModel = 'gemini-3.6-flash' }) {
   const { user, logout, setIsAuthModalOpen } = useAuth();
 
   return (
@@ -91,7 +91,21 @@ export default function Navbar({ activeTab, setActiveTab, toggleHistory }) {
       </div>
 
       {/* Action Buttons & Auth */}
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-2 sm:space-x-3">
+        {/* AI Engine Status Button */}
+        <button
+          onClick={openAISettings}
+          className="flex items-center space-x-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-200 bg-dark-800/90 hover:bg-dark-800 hover:border-brand-500/50 border border-gray-700/60 rounded-xl transition shadow-sm group cursor-pointer"
+          title="Configure Google Gemini AI & API Settings"
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <Sparkles className="w-3.5 h-3.5 text-brand-accent group-hover:rotate-12 transition-transform" />
+          <span className="hidden md:inline text-gray-300 font-mono text-[11px]">{aiEngineModel}</span>
+        </button>
+
         <button
           onClick={toggleHistory}
           className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-300 bg-dark-800 hover:bg-gray-800 border border-gray-700/60 rounded-lg transition"

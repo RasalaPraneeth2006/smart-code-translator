@@ -148,7 +148,10 @@ export const explainError = async (req, res, next) => {
       errorOutput,
     });
 
-    const llmJson = await executeLLMJSON({ systemPrompt, userPrompt });
+    const customApiKey = req.headers['x-gemini-api-key'] || req.body.apiKey;
+    const customModel = req.headers['x-gemini-model'] || req.body.model;
+
+    const llmJson = await executeLLMJSON({ systemPrompt, userPrompt, customApiKey, customModel });
 
     if (
       llmJson &&

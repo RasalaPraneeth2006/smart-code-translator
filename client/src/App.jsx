@@ -9,7 +9,8 @@ import OnlineCompiler from './components/OnlineCompiler';
 import AnalysisModal from './components/AnalysisModal';
 import HistoryDrawer from './components/HistoryDrawer';
 import AuthModal from './components/AuthModal';
-import { codeService } from './services/api';
+import AISettingsModal from './components/AISettingsModal';
+import { codeService, directGeminiTranslate, DEFAULT_GEMINI_MODEL } from './services/api';
 
 const DEFAULT_PYTHON_SAMPLE = `def calculate_factorial(n: int) -> int:
     """Calculates the factorial of a given number non-recursively."""
@@ -40,12 +41,20 @@ function MainApp() {
   const [activeOutputTab, setActiveOutputTab] = useState('code');
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isFallback, setIsFallback] = useState(false);
+  const [modelUsed, setModelUsed] = useState('');
+  const [latencyMs, setLatencyMs] = useState(0);
+
   const [analysisData, setAnalysisData] = useState(null);
   const [analysisType, setAnalysisType] = useState('analysis');
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
 
   const [historyList, setHistoryList] = useState([]);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
+  const [isAISettingsOpen, setIsAISettingsOpen] = useState(false);
+  const [aiEngineModel, setAiEngineModel] = useState(
+    () => localStorage.getItem('sct_gemini_model') || DEFAULT_GEMINI_MODEL
+  );
 
   useEffect(() => {
     fetchHistory();
@@ -67,26 +76,70 @@ function MainApp() {
     setIsLoading(true);
 
     try {
-      const res = await codeService.translate({
-        code: sourceCode,
-        sourceLang,
-        targetLang,
-        options: {
-          preserveComments,
-          includeTests,
-        },
-      });
+      let data = null;
 
-      if (res.data && res.data.success) {
-        const data = res.data.data;
+      // 1. Attempt Backend Server Translation
+      try {
+        const res = await codeService.translate({
+          code: sourceCode,
+          sourceLang,
+          targetLang,
+          options: {
+            preserveComments,
+            includeTests,
+          },
+        });
+
+        if (res.data && res.data.success) {
+          data = res.data.data;
+        }
+      } catch (backendErr) {
+        console.warn('[Translator] Backend call failed, checking direct cloud fallback:', backendErr.message);
+      }
+
+      const directEnabled = localStorage.getItem('sct_direct_fallback') !== 'false';
+
+      // 2. If Backend was in offline fallback mode or unreachable, boost with Direct Cloud AI
+      if ((!data || data.isFallback) && directEnabled) {
+        try {
+          const directRes = await directGeminiTranslate({
+            code: sourceCode,
+            sourceLang,
+            targetLang,
+            options: { preserveComments, includeTests },
+          });
+
+          setTranslatedCode(directRes.translatedCode);
+          setIsFallback(false);
+          setModelUsed(directRes.modelUsed);
+          setLatencyMs(directRes.latencyMs);
+
+          if (data?.astData) {
+            setAstData(data.astData);
+            setTestStubs(data.testStubs || '');
+          }
+          fetchHistory();
+          return;
+        } catch (directErr) {
+          console.warn('[Translator] Direct cloud translation fallback failed:', directErr.message);
+        }
+      }
+
+      // 3. Render Server Result (or offline heuristic fallback)
+      if (data) {
         setTranslatedCode(data.translatedCode);
         setAstData(data.astData);
         setTestStubs(data.testStubs || '');
+        setIsFallback(!!data.isFallback);
+        setModelUsed(data.metrics?.modelUsed || (data.isFallback ? 'Offline Fallback' : 'Gemini AI'));
+        setLatencyMs(data.metrics?.latencyMs || 0);
         if (data.testStubs) setActiveOutputTab('code');
         fetchHistory();
+      } else {
+        throw new Error('Unable to complete code translation. Please check connection or configure Gemini API key.');
       }
     } catch (err) {
-      alert(`Translation Error: ${err.response?.data?.error || err.message}`);
+      alert(`Translation Error: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -152,6 +205,8 @@ function MainApp() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         toggleHistory={() => setIsHistoryDrawerOpen(true)}
+        openAISettings={() => setIsAISettingsOpen(true)}
+        aiEngineModel={aiEngineModel}
       />
 
       <main className="flex-1">
@@ -177,6 +232,10 @@ function MainApp() {
             setIncludeTests={setIncludeTests}
             activeOutputTab={activeOutputTab}
             setActiveOutputTab={setActiveOutputTab}
+            isFallback={isFallback}
+            modelUsed={modelUsed}
+            latencyMs={latencyMs}
+            openAISettings={() => setIsAISettingsOpen(true)}
           />
         )}
 
@@ -217,6 +276,15 @@ function MainApp() {
         historyList={historyList}
         onSelectHistory={handleSelectHistoryItem}
         onRefresh={fetchHistory}
+      />
+
+      {/* AI Settings Modal */}
+      <AISettingsModal
+        isOpen={isAISettingsOpen}
+        onClose={() => setIsAISettingsOpen(false)}
+        onSettingsUpdated={(settings) => {
+          if (settings.model) setAiEngineModel(settings.model);
+        }}
       />
 
       {/* Auth Modal */}

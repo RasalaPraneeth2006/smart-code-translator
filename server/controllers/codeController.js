@@ -33,12 +33,17 @@ export const translateCode = async (req, res, next) => {
     });
 
     // 3. Execute LLM Engine Translation
+    const customApiKey = req.headers['x-gemini-api-key'] || req.body.apiKey;
+    const customModel = req.headers['x-gemini-model'] || req.body.model;
+
     const llmResult = await executeLLMTranslation({
       systemPrompt,
       userPrompt,
       targetLang,
       code,
       sourceLang,
+      customApiKey,
+      customModel,
     });
 
     // 4. Post-Processing (Syntax Validation, Diff Matrix, Test Stub Generation)
@@ -109,8 +114,10 @@ export const analyzeCode = async (req, res, next) => {
       });
     }
 
+    const customApiKey = req.headers['x-gemini-api-key'] || req.body.apiKey;
+    const customModel = req.headers['x-gemini-model'] || req.body.model;
     const { systemPrompt, userPrompt } = buildAnalysisPrompt({ code, language });
-    const llmJson = await executeLLMJSON({ systemPrompt, userPrompt });
+    const llmJson = await executeLLMJSON({ systemPrompt, userPrompt, customApiKey, customModel });
 
     if (llmJson) {
       return res.status(200).json({ success: true, data: llmJson });
@@ -151,8 +158,10 @@ export const optimizeCode = async (req, res, next) => {
       });
     }
 
+    const customApiKey = req.headers['x-gemini-api-key'] || req.body.apiKey;
+    const customModel = req.headers['x-gemini-model'] || req.body.model;
     const { systemPrompt, userPrompt } = buildOptimizationPrompt({ code, language });
-    const llmJson = await executeLLMJSON({ systemPrompt, userPrompt });
+    const llmJson = await executeLLMJSON({ systemPrompt, userPrompt, customApiKey, customModel });
 
     if (llmJson && llmJson.optimizedCode) {
       const responseData = {
@@ -202,5 +211,46 @@ export const getHistory = async (req, res, next) => {
     return res.status(200).json({ success: true, data: inMemoryHistory.slice(0, 30) });
   } catch (error) {
     next(error);
+  }
+};
+
+export const getGeminiStatus = async (req, res) => {
+  const customApiKey = req.headers['x-gemini-api-key'] || req.query.apiKey;
+  const apiKey = customApiKey || process.env.GEMINI_API_KEY;
+  const customModel = req.headers['x-gemini-model'] || req.query.model || process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+
+  if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY') {
+    return res.status(200).json({
+      success: true,
+      configured: false,
+      model: customModel,
+      message: 'Gemini API key is not configured on server or in request header.',
+    });
+  }
+
+  const start = Date.now();
+  try {
+    const { GoogleGenAI } = await import('@google/genai');
+    const ai = new GoogleGenAI({ apiKey });
+    await ai.models.generateContent({
+      model: customModel,
+      contents: [{ role: 'user', parts: [{ text: 'ping' }] }],
+    });
+    const latencyMs = Date.now() - start;
+    return res.status(200).json({
+      success: true,
+      configured: true,
+      model: customModel,
+      latencyMs,
+      message: `Successfully connected to ${customModel} in ${latencyMs}ms.`,
+    });
+  } catch (err) {
+    return res.status(200).json({
+      success: false,
+      configured: false,
+      model: customModel,
+      error: err.message,
+      message: `Failed connecting to ${customModel}: ${err.message}`,
+    });
   }
 };
