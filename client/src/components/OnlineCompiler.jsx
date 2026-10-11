@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import {
   Play,
@@ -16,7 +16,10 @@ import {
   ChevronDown,
   ChevronUp,
   FileCode,
-  Zap
+  Zap,
+  GripHorizontal,
+  Minimize2,
+  Maximize2
 } from 'lucide-react';
 import { codeService } from '../services/api';
 import ErrorExplainerModal from './ErrorExplainerModal';
@@ -187,6 +190,10 @@ func main() {
   },
 ];
 
+const DEFAULT_TERMINAL_HEIGHT = 250;
+const MIN_TERMINAL_HEIGHT = 80;
+const COLLAPSED_TERMINAL_HEIGHT = 42; // Just the header bar
+
 export default function OnlineCompiler() {
   const [selectedLanguage, setSelectedLanguage] = useState('python');
   const [code, setCode] = useState(COMPILER_LANGUAGES[0].template);
@@ -213,6 +220,88 @@ export default function OnlineCompiler() {
 
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedConsole, setCopiedConsole] = useState(false);
+
+  // --- Resizable Terminal State ---
+  const [terminalHeight, setTerminalHeight] = useState(DEFAULT_TERMINAL_HEIGHT);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const containerRef = useRef(null);
+  const dragStartY = useRef(0);
+  const dragStartHeight = useRef(0);
+  const preCollapseHeight = useRef(DEFAULT_TERMINAL_HEIGHT);
+  const editorRef = useRef(null);
+
+  // Compute max terminal height (75% of container)
+  const getMaxTerminalHeight = useCallback(() => {
+    if (containerRef.current) {
+      return containerRef.current.offsetHeight * 0.75;
+    }
+    return window.innerHeight * 0.75;
+  }, []);
+
+  // Drag handlers
+  const handleDragStart = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(true);
+    dragStartY.current = e.clientY;
+    dragStartHeight.current = terminalHeight;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  }, [terminalHeight]);
+
+  const handleDragMove = useCallback((e) => {
+    if (!isDragging) return;
+    const deltaY = dragStartY.current - e.clientY; // Dragging up = positive delta = taller terminal
+    const maxH = getMaxTerminalHeight();
+    const newHeight = Math.min(maxH, Math.max(MIN_TERMINAL_HEIGHT, dragStartHeight.current + deltaY));
+    setTerminalHeight(newHeight);
+    setIsCollapsed(false);
+  }, [isDragging, getMaxTerminalHeight]);
+
+  const handleDragEnd = useCallback(() => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, [isDragging]);
+
+  // Attach/detach global mouse listeners for drag
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleDragMove);
+      window.addEventListener('mouseup', handleDragEnd);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleDragMove);
+      window.removeEventListener('mouseup', handleDragEnd);
+    };
+  }, [isDragging, handleDragMove, handleDragEnd]);
+
+  // Toggle collapse
+  const toggleCollapse = useCallback(() => {
+    if (isCollapsed) {
+      setTerminalHeight(preCollapseHeight.current);
+      setIsCollapsed(false);
+    } else {
+      preCollapseHeight.current = terminalHeight;
+      setIsCollapsed(true);
+    }
+  }, [isCollapsed, terminalHeight]);
+
+  // Store editor instance for layout trigger
+  const handleEditorMount = useCallback((editor) => {
+    editorRef.current = editor;
+  }, []);
+
+  // Trigger Monaco relayout when terminal height changes
+  useEffect(() => {
+    if (editorRef.current) {
+      // Small RAF delay ensures the DOM has updated before relayout
+      requestAnimationFrame(() => {
+        editorRef.current.layout();
+      });
+    }
+  }, [terminalHeight, isCollapsed]);
 
   // Language change handler
   const handleLanguageChange = (langId) => {
@@ -464,10 +553,10 @@ export default function OnlineCompiler() {
         </div>
       )}
 
-      {/* Workbench Grid: Top Editor + Bottom Console */}
-      <div className="grid grid-rows-[3fr_2fr] gap-3 flex-1 min-h-0">
-        {/* Top Monaco Editor Pane */}
-        <div className="glass-panel rounded-xl flex flex-col overflow-hidden border border-gray-800">
+      {/* Workbench: Top Editor + Drag Handle + Bottom Console */}
+      <div ref={containerRef} className="flex flex-col flex-1 min-h-0 gap-0">
+        {/* Top Monaco Editor Pane — fills remaining space */}
+        <div className="glass-panel rounded-xl flex flex-col overflow-hidden border border-gray-800 flex-1 min-h-[120px]">
           <div className="px-4 py-2.5 bg-dark-800/80 border-b border-gray-800 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <FileCode className="w-4 h-4 text-amber-400" />
@@ -496,6 +585,7 @@ export default function OnlineCompiler() {
               value={code}
               loading={<div className="flex items-center justify-center h-full text-xs text-amber-400 font-mono">Loading Interactive Monaco Playground...</div>}
               onChange={(val) => setCode(val || '')}
+              onMount={handleEditorMount}
               options={{
                 fontSize: 13,
                 fontFamily: 'JetBrains Mono',
@@ -508,10 +598,27 @@ export default function OnlineCompiler() {
           </div>
         </div>
 
+        {/* ═══ Draggable Resize Handle ═══ */}
+        <div
+          className={`resize-handle-bar group ${ isDragging ? 'active' : '' }`}
+          onMouseDown={handleDragStart}
+          title="Drag to resize terminal"
+        >
+          <div className="resize-handle-grip">
+            <GripHorizontal className="w-4 h-4" />
+          </div>
+        </div>
+
         {/* Bottom Interactive Terminal / Console Pane */}
-        <div className="glass-panel rounded-xl flex flex-col overflow-hidden border border-gray-800 shadow-2xl">
+        <div
+          className="glass-panel rounded-xl flex flex-col overflow-hidden border border-gray-800 shadow-2xl flex-shrink-0"
+          style={{
+            height: isCollapsed ? COLLAPSED_TERMINAL_HEIGHT : terminalHeight,
+            transition: isDragging ? 'none' : 'height 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        >
           {/* Console Header */}
-          <div className="px-4 py-2 bg-dark-800/90 border-b border-gray-800 flex items-center justify-between">
+          <div className="px-4 py-2 bg-dark-800/90 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-1.5">
                 <TerminalIcon className="w-4 h-4 text-green-400" />
@@ -566,11 +673,21 @@ export default function OnlineCompiler() {
                 <Trash2 className="w-3 h-3" />
                 <span>Clear</span>
               </button>
+
+              {/* Collapse / Expand Toggle */}
+              <button
+                onClick={toggleCollapse}
+                className="flex items-center space-x-1 px-2 py-1 text-[11px] text-gray-400 hover:text-white rounded hover:bg-gray-700/50 transition"
+                title={isCollapsed ? 'Expand terminal' : 'Collapse terminal'}
+              >
+                {isCollapsed ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
+                <span>{isCollapsed ? 'Expand' : 'Collapse'}</span>
+              </button>
             </div>
           </div>
 
           {/* Console Content Area */}
-          <div className="flex-1 bg-[#070A12] p-3.5 font-mono text-xs overflow-y-auto space-y-2 select-text">
+          <div className={`flex-1 bg-[#070A12] p-3.5 font-mono text-xs overflow-y-auto space-y-2 select-text ${ isCollapsed ? 'hidden' : '' }`}>
             {isRunning ? (
               <div className="flex items-center space-x-2 text-gray-400 py-2">
                 <div className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />

@@ -52,3 +52,69 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #374151;
 }
+
+/* ═══ Resizable Terminal Drag Handle ═══ */
+.resize-handle-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 10px;
+  margin: 2px 0;
+  cursor: row-resize;
+  z-index: 10;
+  border-radius: 6px;
+  transition: background 0.2s ease, height 0.15s ease;
+}
+
+.resize-handle-bar::before {
+  content: '';
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  transition: background 0.2s ease;
+}
+
+.resize-handle-bar:hover {
+  height: 14px;
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.resize-handle-bar:hover::before {
+  background: rgba(99, 102, 241, 0.35);
+}
+
+.resize-handle-bar.active {
+  height: 14px;
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.resize-handle-bar.active::before {
+  background: rgba(168, 85, 247, 0.6);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.3);
+}
+
+.resize-handle-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.12);
+  transition: color 0.2s ease, transform 0.15s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.resize-handle-bar:hover .resize-handle-grip {
+  color: rgba(99, 102, 241, 0.7);
+  transform: scaleX(1.2);
+}
+
+.resize-handle-bar.active .resize-handle-grip {
+  color: rgba(168, 85, 247, 0.9);
+  transform: scaleX(1.3);
+}
