@@ -52,9 +52,17 @@ function MainApp() {
   const [historyList, setHistoryList] = useState([]);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isAISettingsOpen, setIsAISettingsOpen] = useState(false);
-  const [aiEngineModel, setAiEngineModel] = useState(
-    () => localStorage.getItem('sct_gemini_model') || DEFAULT_GEMINI_MODEL
-  );
+  const [aiEngineModel, setAiEngineModel] = useState(() => {
+    let stored = localStorage.getItem('sct_gemini_model') || DEFAULT_GEMINI_MODEL;
+    if (stored === 'gemini-3.6-flash' || stored === 'gemini-2.5-flash' || stored === 'gemini-3.5-flash') {
+      stored = DEFAULT_GEMINI_MODEL;
+      localStorage.setItem('sct_gemini_model', stored);
+    }
+    return stored;
+  });
+
+  // Client-side instant LRU cache for 0ms repeat translations
+  const [translationCache] = useState(() => new Map());
 
   useEffect(() => {
     fetchHistory();
@@ -73,13 +81,67 @@ function MainApp() {
 
   const handleTranslate = async () => {
     if (!sourceCode.trim()) return;
+
+    const cacheKey = `${sourceLang}->${targetLang}:${preserveComments}:${includeTests}:${aiEngineModel}:${sourceCode.trim()}`;
+    if (translationCache.has(cacheKey)) {
+      const cached = translationCache.get(cacheKey);
+      setTranslatedCode(cached.translatedCode);
+      setAstData(cached.astData || null);
+      setTestStubs(cached.testStubs || '');
+      setIsFallback(false);
+      setModelUsed(`${cached.modelUsed} • Instant Cache`);
+      setLatencyMs(cached.latencyMs || 0);
+      if (cached.testStubs && includeTests) setActiveOutputTab('code');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      let data = null;
+      const directEnabled = localStorage.getItem('sct_direct_fallback') !== 'false';
+      let translationResult = null;
 
-      // 1. Attempt Backend Server Translation
-      try {
+      // Fast-Track Turbo Strategy:
+      // In production or when direct cloud booster is enabled, trigger direct Gemini translation
+      // immediately (~1.2s latency) so the user never has to wait for sleeping servers.
+      if (directEnabled) {
+        try {
+          const directPromise = directGeminiTranslate({
+            code: sourceCode,
+            sourceLang,
+            targetLang,
+            options: { preserveComments, includeTests },
+          });
+
+          // Also invoke backend asynchronously to parse AST metadata and persist to history
+          codeService.translate({
+            code: sourceCode,
+            sourceLang,
+            targetLang,
+            options: { preserveComments, includeTests },
+          }).then(res => {
+            if (res?.data?.data) {
+              const bgData = res.data.data;
+              if (bgData.astData) setAstData(bgData.astData);
+              if (bgData.testStubs) setTestStubs(bgData.testStubs);
+              fetchHistory();
+            }
+          }).catch(() => {});
+
+          const directRes = await directPromise;
+          translationResult = {
+            translatedCode: directRes.translatedCode,
+            modelUsed: directRes.modelUsed,
+            latencyMs: directRes.latencyMs,
+            isFallback: false,
+          };
+        } catch (directErr) {
+          console.warn('[Translator] Fast direct cloud attempt failed, falling back to backend:', directErr.message);
+        }
+      }
+
+      // If direct cloud wasn't used or had an error, execute backend translation
+      if (!translationResult) {
         const res = await codeService.translate({
           code: sourceCode,
           sourceLang,
@@ -91,52 +153,32 @@ function MainApp() {
         });
 
         if (res.data && res.data.success) {
-          data = res.data.data;
-        }
-      } catch (backendErr) {
-        console.warn('[Translator] Backend call failed, checking direct cloud fallback:', backendErr.message);
-      }
-
-      const directEnabled = localStorage.getItem('sct_direct_fallback') !== 'false';
-
-      // 2. If Backend was in offline fallback mode or unreachable, boost with Direct Cloud AI
-      if ((!data || data.isFallback) && directEnabled) {
-        try {
-          const directRes = await directGeminiTranslate({
-            code: sourceCode,
-            sourceLang,
-            targetLang,
-            options: { preserveComments, includeTests },
-          });
-
-          setTranslatedCode(directRes.translatedCode);
-          setIsFallback(false);
-          setModelUsed(directRes.modelUsed);
-          setLatencyMs(directRes.latencyMs);
-
-          if (data?.astData) {
-            setAstData(data.astData);
-            setTestStubs(data.testStubs || '');
-          }
+          const bData = res.data.data;
+          translationResult = {
+            translatedCode: bData.translatedCode,
+            astData: bData.astData,
+            testStubs: bData.testStubs || '',
+            modelUsed: bData.metrics?.modelUsed || (bData.isFallback ? 'Offline Fallback' : 'Gemini AI'),
+            latencyMs: bData.metrics?.latencyMs || 0,
+            isFallback: !!bData.isFallback,
+          };
           fetchHistory();
-          return;
-        } catch (directErr) {
-          console.warn('[Translator] Direct cloud translation fallback failed:', directErr.message);
         }
       }
 
-      // 3. Render Server Result (or offline heuristic fallback)
-      if (data) {
-        setTranslatedCode(data.translatedCode);
-        setAstData(data.astData);
-        setTestStubs(data.testStubs || '');
-        setIsFallback(!!data.isFallback);
-        setModelUsed(data.metrics?.modelUsed || (data.isFallback ? 'Offline Fallback' : 'Gemini AI'));
-        setLatencyMs(data.metrics?.latencyMs || 0);
-        if (data.testStubs) setActiveOutputTab('code');
-        fetchHistory();
+      if (translationResult) {
+        setTranslatedCode(translationResult.translatedCode);
+        if (translationResult.astData) setAstData(translationResult.astData);
+        if (translationResult.testStubs) setTestStubs(translationResult.testStubs);
+        setIsFallback(translationResult.isFallback);
+        setModelUsed(translationResult.modelUsed);
+        setLatencyMs(translationResult.latencyMs);
+
+        // Store into cache for instant future lookups
+        translationCache.set(cacheKey, translationResult);
+        if (translationResult.testStubs && includeTests) setActiveOutputTab('code');
       } else {
-        throw new Error('Unable to complete code translation. Please check connection or configure Gemini API key.');
+        throw new Error('Unable to translate code. Please check your network or Gemini API key.');
       }
     } catch (err) {
       alert(`Translation Error: ${err.message}`);

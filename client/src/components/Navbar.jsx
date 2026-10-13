@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Code2, GitCompare, History, Terminal, User, LogOut, Sparkles, Layers, FolderTree, Zap } from 'lucide-react';
 
-export default function Navbar({ activeTab, setActiveTab, toggleHistory, openAISettings, aiEngineModel = 'gemini-3.6-flash' }) {
+export default function Navbar({ activeTab, setActiveTab, toggleHistory, openAISettings, aiEngineModel = 'gemini-flash-lite-latest' }) {
   const { user, logout, setIsAuthModalOpen } = useAuth();
 
   return (

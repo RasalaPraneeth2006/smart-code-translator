@@ -375,10 +375,17 @@ export default function EditorPane({
             )}
 
             {isLoading ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-dark-900/80 backdrop-blur-sm z-10">
-                <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-3" />
-                <p className="text-sm font-semibold text-gray-200">Executing AST Engine & LLM Pipeline...</p>
-                <p className="text-xs text-gray-400 mt-1">Preserving business logic & structural definitions</p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-dark-900/85 backdrop-blur-sm z-10 animate-in fade-in duration-150">
+                <div className="relative mb-3 flex items-center justify-center">
+                  <div className="w-12 h-12 border-2 border-brand-500/20 border-t-brand-accent rounded-full animate-spin" />
+                  <Zap className="w-5 h-5 text-amber-400 absolute animate-pulse" />
+                </div>
+                <p className="text-sm font-semibold text-gray-100 flex items-center space-x-1.5">
+                  <span>Executing Turbo AI Translation Engine...</span>
+                </p>
+                <p className="text-xs text-brand-cyan mt-1 font-mono">
+                  ⚡ Gemini Flash Lite • Idiomatic AST Synthesis
+                </p>
               </div>
             ) : null}
 

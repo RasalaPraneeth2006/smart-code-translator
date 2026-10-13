@@ -217,7 +217,10 @@ export const getHistory = async (req, res, next) => {
 export const getGeminiStatus = async (req, res) => {
   const customApiKey = req.headers['x-gemini-api-key'] || req.query.apiKey;
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
-  const customModel = req.headers['x-gemini-model'] || req.query.model || process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+  let customModel = req.headers['x-gemini-model'] || req.query.model || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
+  if (customModel === 'gemini-3.6-flash' || customModel === 'gemini-2.5-flash' || customModel === 'gemini-3.5-flash') {
+    customModel = 'gemini-flash-lite-latest';
+  }
 
   if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY') {
     return res.status(200).json({

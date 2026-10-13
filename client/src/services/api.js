@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 export const DEFAULT_GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-flash-lite-latest';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://smart-code-translator-api.onrender.com/api' : '/api');
 
@@ -25,7 +25,12 @@ api.interceptors.request.use(
       config.headers['x-gemini-api-key'] = geminiKey;
     }
 
-    const geminiModel = localStorage.getItem('sct_gemini_model') || DEFAULT_GEMINI_MODEL;
+    let geminiModel = localStorage.getItem('sct_gemini_model') || DEFAULT_GEMINI_MODEL;
+    // Auto-migrate overloaded / deprecated models to the ultra-fast working model
+    if (geminiModel === 'gemini-3.6-flash' || geminiModel === 'gemini-2.5-flash' || geminiModel === 'gemini-3.5-flash') {
+      geminiModel = DEFAULT_GEMINI_MODEL;
+      localStorage.setItem('sct_gemini_model', geminiModel);
+    }
     if (geminiModel) {
       config.headers['x-gemini-model'] = geminiModel;
     }
@@ -49,11 +54,28 @@ api.interceptors.response.use(
 
 /**
  * Direct Gemini REST API client
- * Provides instantaneous high-fidelity translation when the backend is offline or unconfigured.
+ * Provides instantaneous high-fidelity translation (~1.2s latency) directly from client browser,
+ * with multi-candidate automatic fallback if any model experiences temporary demand spikes.
  */
 export async function directGeminiTranslate({ code, sourceLang, targetLang, apiKey, model, options = {} }) {
   const activeKey = apiKey || localStorage.getItem('sct_gemini_api_key') || DEFAULT_GEMINI_API_KEY;
-  const activeModel = model || localStorage.getItem('sct_gemini_model') || DEFAULT_GEMINI_MODEL;
+  if (!activeKey) {
+    throw new Error('Client Gemini API key is not configured.');
+  }
+  let preferredModel = model || localStorage.getItem('sct_gemini_model') || DEFAULT_GEMINI_MODEL;
+  
+  if (preferredModel === 'gemini-3.6-flash' || preferredModel === 'gemini-2.5-flash' || preferredModel === 'gemini-3.5-flash') {
+    preferredModel = DEFAULT_GEMINI_MODEL;
+    localStorage.setItem('sct_gemini_model', preferredModel);
+  }
+
+  const candidateModels = [
+    preferredModel,
+    'gemini-flash-lite-latest',
+    'gemini-3.1-flash-lite',
+    'gemini-flash-latest',
+    'gemini-3.8-flash',
+  ].filter((m, idx, self) => m && self.indexOf(m) === idx);
 
   const prompt = `You are a world-class polyglot compiler and software engineer.
 Translate the following ${sourceLang} source code into clean, idiomatic, and modern ${targetLang}.
@@ -68,39 +90,54 @@ Source Code (${sourceLang}):
 ${code}
 \`\`\``;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${activeKey}`;
-  const start = Date.now();
+  let lastError = null;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1,
-        topP: 0.95,
-      },
-    }),
-  });
+  for (const modelToTry of candidateModels) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToTry}:generateContent?key=${activeKey}`;
+    const start = Date.now();
 
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `Gemini API HTTP ${res.status}`);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.1,
+            topP: 0.95,
+            maxOutputTokens: 4096,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const errMsg = errData?.error?.message || `HTTP ${res.status}`;
+        console.warn(`[Direct Translate Warning] Model '${modelToTry}' failed (${errMsg}). Trying next candidate...`);
+        lastError = new Error(errMsg);
+        continue;
+      }
+
+      const data = await res.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const codeBlockRegex = /```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)\n```/;
+      const match = rawText.match(codeBlockRegex);
+      const cleanedCode = match && match[1] ? match[1].trim() : rawText.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
+
+      return {
+        translatedCode: cleanedCode,
+        modelUsed: `${modelToTry} (Turbo Cloud)`,
+        latencyMs: Date.now() - start,
+        isFallback: false,
+        rawResponse: rawText,
+      };
+    } catch (err) {
+      console.warn(`[Direct Translate Error] Network error with '${modelToTry}': ${err.message}`);
+      lastError = err;
+    }
   }
 
-  const data = await res.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  const codeBlockRegex = /```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)\n```/;
-  const match = rawText.match(codeBlockRegex);
-  const cleanedCode = match && match[1] ? match[1].trim() : rawText.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
-
-  return {
-    translatedCode: cleanedCode,
-    modelUsed: `${activeModel} (Gemini Cloud)`,
-    latencyMs: Date.now() - start,
-    isFallback: false,
-    rawResponse: rawText,
-  };
+  throw lastError || new Error('All Gemini candidate models failed to respond.');
 }
 
 export const codeService = {

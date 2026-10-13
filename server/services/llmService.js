@@ -8,15 +8,19 @@ export async function executeLLMTranslation({ systemPrompt, userPrompt, targetLa
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
 
   if (apiKey && apiKey !== 'YOUR_GEMINI_API_KEY') {
+    const rawCandidate = customModel || process.env.GEMINI_MODEL;
+    const prioritizedModel = (rawCandidate && !['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-3.5-flash'].includes(rawCandidate))
+      ? rawCandidate
+      : null;
+
     const candidateModels = [
-      customModel,
-      process.env.GEMINI_MODEL,
-      'gemini-3.6-flash',
-      'gemini-2.5-flash',
+      prioritizedModel,
+      'gemini-flash-lite-latest',
+      'gemini-3.1-flash-lite',
       'gemini-flash-latest',
-      'gemini-3.5-flash',
-      'gemini-3.7-flash',
-    ].filter((m, idx, self) => m && self.indexOf(m) === idx);
+      'gemini-3.8-flash',
+      'gemini-3.6-flash',
+    ].filter(Boolean).filter((m, idx, self) => self.indexOf(m) === idx);
 
     const ai = new GoogleGenAI({ apiKey });
 
@@ -55,15 +59,19 @@ export async function executeLLMJSON({ systemPrompt, userPrompt, customApiKey, c
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
 
   if (apiKey && apiKey !== 'YOUR_GEMINI_API_KEY') {
+    const rawCandidate = customModel || process.env.GEMINI_MODEL;
+    const prioritizedModel = (rawCandidate && !['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-3.5-flash'].includes(rawCandidate))
+      ? rawCandidate
+      : null;
+
     const candidateModels = [
-      customModel,
-      process.env.GEMINI_MODEL,
-      'gemini-3.6-flash',
-      'gemini-2.5-flash',
+      prioritizedModel,
+      'gemini-flash-lite-latest',
+      'gemini-3.1-flash-lite',
       'gemini-flash-latest',
-      'gemini-3.5-flash',
-      'gemini-3.7-flash',
-    ].filter((m, idx, self) => m && self.indexOf(m) === idx);
+      'gemini-3.8-flash',
+      'gemini-3.6-flash',
+    ].filter(Boolean).filter((m, idx, self) => self.indexOf(m) === idx);
 
     const ai = new GoogleGenAI({ apiKey });
 

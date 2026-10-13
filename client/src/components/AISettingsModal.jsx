@@ -14,7 +14,11 @@ export default function AISettingsModal({ isOpen, onClose, onSettingsUpdated }) 
     if (isOpen) {
       const storedKey = localStorage.getItem('sct_gemini_api_key');
       setApiKey(storedKey !== null ? storedKey : DEFAULT_GEMINI_API_KEY);
-      const storedModel = localStorage.getItem('sct_gemini_model') || DEFAULT_GEMINI_MODEL;
+      let storedModel = localStorage.getItem('sct_gemini_model') || DEFAULT_GEMINI_MODEL;
+      if (storedModel === 'gemini-3.6-flash' || storedModel === 'gemini-2.5-flash' || storedModel === 'gemini-3.5-flash') {
+        storedModel = DEFAULT_GEMINI_MODEL;
+        localStorage.setItem('sct_gemini_model', storedModel);
+      }
       setModel(storedModel);
       const storedDirect = localStorage.getItem('sct_direct_fallback');
       setDirectCloudFallback(storedDirect !== 'false');
@@ -165,11 +169,11 @@ export default function AISettingsModal({ isOpen, onClose, onSettingsUpdated }) 
               onChange={(e) => setModel(e.target.value)}
               className="w-full bg-dark-900 border border-gray-700/80 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 font-mono cursor-pointer"
             >
-              <option value="gemini-3.6-flash">gemini-3.6-flash (Ultra-Fast & Smart, Recommended)</option>
-              <option value="gemini-2.5-flash">gemini-2.5-flash (Balanced Production)</option>
-              <option value="gemini-flash-latest">gemini-flash-latest (Auto-Updating)</option>
-              <option value="gemini-3.5-flash">gemini-3.5-flash (Standard)</option>
-              <option value="gemini-3.7-flash">gemini-3.7-flash (Advanced Reasoning)</option>
+              <option value="gemini-flash-lite-latest">gemini-flash-lite-latest (⚡ Ultra-Fast 1.2s, Recommended)</option>
+              <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Fast & High Accuracy)</option>
+              <option value="gemini-flash-latest">gemini-flash-latest (Auto-Updating Flash)</option>
+              <option value="gemini-3.8-flash">gemini-3.8-flash (Advanced Reasoning)</option>
+              <option value="gemini-3.6-flash">gemini-3.6-flash (Flash Preview)</option>
             </select>
           </div>
 

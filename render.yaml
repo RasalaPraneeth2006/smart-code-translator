@@ -15,7 +15,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-3.6-flash
+        value: gemini-flash-lite-latest
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
